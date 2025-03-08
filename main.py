@@ -1,6 +1,9 @@
 import pygame
 import random
 import sys
+import os
+import json
+from datetime import datetime
 
 # 初期化
 pygame.init()
@@ -136,7 +139,11 @@ class Tetris:
         self.lines_cleared = 0
         self.game_over = False
         self.paused = False
+        self.show_ranking = False
         self.font = pygame.font.SysFont('Arial', 24)
+        self.player_name = ""
+        self.name_input_active = False
+        self.rankings = self.load_rankings()
         
         # 新しいテトリミノを生成
         self.new_tetromino()
@@ -314,9 +321,67 @@ class Tetris:
             self.move(0, 1)
             self.last_fall_time = current_time
     
+    def reset(self):
+        # ランキングを保持しつつゲームをリセットする
+        rankings = self.rankings
+        self.__init__()
+        self.rankings = rankings
+        
+    def load_rankings(self):
+        # ランキングをファイルから読み込む
+        rankings_file = "tetris_rankings.json"
+        if os.path.exists(rankings_file):
+            try:
+                with open(rankings_file, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except:
+                return []
+        return []
+    
+    def save_rankings(self):
+        # ランキングをファイルに保存
+        rankings_file = "tetris_rankings.json"
+        with open(rankings_file, "w", encoding="utf-8") as f:
+            json.dump(self.rankings, f, ensure_ascii=False)
+    
+    def add_to_rankings(self, name):
+        # スコアをランキングに追加
+        today = datetime.now().strftime("%Y/%m/%d")
+        new_record = {
+            "name": name,
+            "score": self.score,
+            "lines": self.lines_cleared,
+            "level": self.level,
+            "date": today
+        }
+        
+        # ランキングに追加して降順でソート
+        self.rankings.append(new_record)
+        self.rankings = sorted(self.rankings, key=lambda x: x["score"], reverse=True)
+        
+        # 最大10件まで保存
+        if len(self.rankings) > 10:
+            self.rankings = self.rankings[:10]
+        
+        # ランキングを保存
+        self.save_rankings()
+        
+        # ランキング表示に切り替え
+        self.show_ranking = True
+    
     def draw(self):
         # 背景を黒で塗りつぶす
         screen.fill(BLACK)
+        
+        # ランキング表示画面
+        if self.show_ranking:
+            self.draw_rankings()
+            return
+            
+        # 名前入力画面
+        if self.name_input_active:
+            self.draw_name_input()
+            return
         
         # フィールドの枠線
         pygame.draw.rect(screen, WHITE, (0, 0, GAME_WIDTH, GAME_HEIGHT), 1)
@@ -413,6 +478,15 @@ class Tetris:
                         1
                     )
         
+        # ランキングボタン
+        rank_button = pygame.Rect(GAME_WIDTH + 20, SCREEN_HEIGHT - 80, INFO_WIDTH - 40, 30)
+        pygame.draw.rect(screen, GRAY, rank_button)
+        pygame.draw.rect(screen, WHITE, rank_button, 1)
+        rank_text = self.font.render("Ranking", True, WHITE)
+        rank_text_x = GAME_WIDTH + 20 + (INFO_WIDTH - 40 - rank_text.get_width()) // 2
+        rank_text_y = SCREEN_HEIGHT - 80 + (30 - rank_text.get_height()) // 2
+        screen.blit(rank_text, (rank_text_x, rank_text_y))
+        
         # ゲームオーバー表示
         if self.game_over:
             # 半透明の黒いオーバーレイ
@@ -427,14 +501,39 @@ class Tetris:
             
             # 画面中央に表示
             text_x = (SCREEN_WIDTH - game_over_text.get_width()) // 2
-            text_y = (SCREEN_HEIGHT - game_over_text.get_height()) // 2
+            text_y = (SCREEN_HEIGHT - game_over_text.get_height()) // 2 - 50
             screen.blit(game_over_text, (text_x, text_y))
             
-            # リトライ案内
-            retry_font = pygame.font.SysFont('Arial', 24)
-            retry_text = retry_font.render("Press R to Retry", True, WHITE)
+            # スコア表示
+            final_score_font = pygame.font.SysFont('Arial', 36)
+            final_score_text = final_score_font.render(f"Score: {self.score}", True, WHITE)
+            score_x = (SCREEN_WIDTH - final_score_text.get_width()) // 2
+            score_y = text_y + game_over_text.get_height() + 10
+            screen.blit(final_score_text, (score_x, score_y))
+            
+            # 名前入力案内
+            name_font = pygame.font.SysFont('Arial', 24)
+            name_text = name_font.render("Enter your name for ranking", True, WHITE)
+            name_x = (SCREEN_WIDTH - name_text.get_width()) // 2
+            name_y = score_y + final_score_text.get_height() + 20
+            screen.blit(name_text, (name_x, name_y))
+            
+            # 名前入力ボタン
+            input_button = pygame.Rect((SCREEN_WIDTH - 200) // 2, name_y + name_text.get_height() + 10, 200, 40)
+            pygame.draw.rect(screen, GRAY, input_button)
+            pygame.draw.rect(screen, WHITE, input_button, 1)
+            input_text = self.font.render("Enter Name", True, WHITE)
+            input_x = (SCREEN_WIDTH - input_text.get_width()) // 2
+            input_y = input_button.y + (input_button.height - input_text.get_height()) // 2
+            screen.blit(input_text, (input_x, input_y))
+            
+            # リトライボタン
+            retry_button = pygame.Rect((SCREEN_WIDTH - 200) // 2, input_button.y + input_button.height + 20, 200, 40)
+            pygame.draw.rect(screen, GRAY, retry_button)
+            pygame.draw.rect(screen, WHITE, retry_button, 1)
+            retry_text = self.font.render("Retry Without Saving", True, WHITE)
             retry_x = (SCREEN_WIDTH - retry_text.get_width()) // 2
-            retry_y = text_y + game_over_text.get_height() + 20
+            retry_y = retry_button.y + (retry_button.height - retry_text.get_height()) // 2
             screen.blit(retry_text, (retry_x, retry_y))
         
         # 一時停止表示
@@ -454,9 +553,128 @@ class Tetris:
             text_y = (SCREEN_HEIGHT - pause_text.get_height()) // 2
             screen.blit(pause_text, (text_x, text_y))
     
-    def reset(self):
-        # ゲームをリセットする
-        self.__init__()
+    def draw_name_input(self):
+        # 名前入力画面を描画
+        screen.fill(BLACK)
+        
+        # タイトル
+        title_font = pygame.font.SysFont('Arial', 36)
+        title_text = title_font.render("Enter Your Name", True, WHITE)
+        title_x = (SCREEN_WIDTH - title_text.get_width()) // 2
+        title_y = 100
+        screen.blit(title_text, (title_x, title_y))
+        
+        # 名前入力フィールド
+        input_rect = pygame.Rect((SCREEN_WIDTH - 300) // 2, 180, 300, 40)
+        pygame.draw.rect(screen, GRAY, input_rect)
+        pygame.draw.rect(screen, WHITE, input_rect, 2)
+        
+        # 入力中の名前表示
+        name_text = self.font.render(self.player_name, True, WHITE)
+        name_x = input_rect.x + 10
+        name_y = input_rect.y + (input_rect.height - name_text.get_height()) // 2
+        screen.blit(name_text, (name_x, name_y))
+        
+        # カーソル点滅（0.5秒ごと）
+        if pygame.time.get_ticks() % 1000 < 500:
+            cursor_x = name_x + name_text.get_width() + 2
+            pygame.draw.line(screen, WHITE, (cursor_x, name_y), (cursor_x, name_y + name_text.get_height()), 2)
+        
+        # 決定ボタン
+        submit_rect = pygame.Rect((SCREEN_WIDTH - 200) // 2, 260, 200, 40)
+        pygame.draw.rect(screen, GRAY, submit_rect)
+        pygame.draw.rect(screen, WHITE, submit_rect, 1)
+        submit_text = self.font.render("Submit", True, WHITE)
+        submit_x = submit_rect.x + (submit_rect.width - submit_text.get_width()) // 2
+        submit_y = submit_rect.y + (submit_rect.height - submit_text.get_height()) // 2
+        screen.blit(submit_text, (submit_x, submit_y))
+        
+        # 説明
+        info_font = pygame.font.SysFont('Arial', 18)
+        info_text = info_font.render("Press ENTER to submit or ESC to cancel", True, WHITE)
+        info_x = (SCREEN_WIDTH - info_text.get_width()) // 2
+        info_y = 320
+        screen.blit(info_text, (info_x, info_y))
+    
+    def draw_rankings(self):
+        # ランキング画面の描画
+        screen.fill(BLACK)
+        
+        # タイトル
+        title_font = pygame.font.SysFont('Arial', 36)
+        title_text = title_font.render("Tetris Ranking", True, WHITE)
+        title_x = (SCREEN_WIDTH - title_text.get_width()) // 2
+        title_y = 30
+        screen.blit(title_text, (title_x, title_y))
+        
+        # ヘッダー
+        header_y = 90
+        header_font = pygame.font.SysFont('Arial', 20)
+        
+        rank_text = header_font.render("Rank", True, WHITE)
+        screen.blit(rank_text, (50, header_y))
+        
+        name_text = header_font.render("Name", True, WHITE)
+        screen.blit(name_text, (120, header_y))
+        
+        score_text = header_font.render("Score", True, WHITE)
+        screen.blit(score_text, (250, header_y))
+        
+        level_text = header_font.render("Level", True, WHITE)
+        screen.blit(level_text, (350, header_y))
+        
+        lines_text = header_font.render("Lines", True, WHITE)
+        screen.blit(lines_text, (420, header_y))
+        
+        date_text = header_font.render("Date", True, WHITE)
+        screen.blit(date_text, (490, header_y))
+        
+        # 区切り線
+        pygame.draw.line(screen, WHITE, (30, header_y + 30), (SCREEN_WIDTH - 30, header_y + 30), 1)
+        
+        # ランキングデータ
+        if not self.rankings:
+            no_data_text = self.font.render("No Records Yet", True, WHITE)
+            no_data_x = (SCREEN_WIDTH - no_data_text.get_width()) // 2
+            no_data_y = header_y + 70
+            screen.blit(no_data_text, (no_data_x, no_data_y))
+        else:
+            data_y = header_y + 50
+            for i, record in enumerate(self.rankings):
+                # 順位
+                rank_text = self.font.render(f"{i + 1}", True, WHITE)
+                screen.blit(rank_text, (50, data_y))
+                
+                # 名前
+                name_text = self.font.render(record["name"], True, WHITE)
+                screen.blit(name_text, (120, data_y))
+                
+                # スコア
+                score_text = self.font.render(f"{record['score']}", True, WHITE)
+                screen.blit(score_text, (250, data_y))
+                
+                # レベル
+                level_text = self.font.render(f"{record['level']}", True, WHITE)
+                screen.blit(level_text, (350, data_y))
+                
+                # ライン数
+                lines_text = self.font.render(f"{record['lines']}", True, WHITE)
+                screen.blit(lines_text, (420, data_y))
+                
+                # 日付
+                date_text = self.font.render(f"{record['date']}", True, WHITE)
+                screen.blit(date_text, (490, data_y))
+                
+                data_y += 30
+        
+        # 戻るボタン
+        back_rect = pygame.Rect((SCREEN_WIDTH - 200) // 2, SCREEN_HEIGHT - 80, 200, 40)
+        pygame.draw.rect(screen, GRAY, back_rect)
+        pygame.draw.rect(screen, WHITE, back_rect, 1)
+        back_text = self.font.render("Back to Game", True, WHITE)
+        back_x = back_rect.x + (back_rect.width - back_text.get_width()) // 2
+        back_y = back_rect.y + (back_rect.height - back_text.get_height()) // 2
+        screen.blit(back_text, (back_x, back_y))
 
 # メインゲームループ
 def main():
@@ -471,7 +689,7 @@ def main():
     print("上矢印キー: 回転")
     print("スペース: ハードドロップ（一気に落下）")
     print("P: 一時停止/再開")
-    print("R: リセット（ゲームオーバー時）")
+    print("R: ランキング表示")
     print("ESC: 終了")
     
     while True:
@@ -481,36 +699,105 @@ def main():
                 pygame.quit()
                 sys.exit()
             
-            elif event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_ESCAPE:
-                    pygame.quit()
-                    sys.exit()
+            # マウスクリックイベント
+            elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:  # 左クリック
+                mouse_pos = pygame.mouse.get_pos()
                 
-                if game.game_over:
-                    if event.key == pygame.K_r:
+                # ランキング画面
+                if game.show_ranking:
+                    # 戻るボタン
+                    back_rect = pygame.Rect((SCREEN_WIDTH - 200) // 2, SCREEN_HEIGHT - 80, 200, 40)
+                    if back_rect.collidepoint(mouse_pos):
+                        game.show_ranking = False
+                
+                # 名前入力画面
+                elif game.name_input_active:
+                    # 決定ボタン
+                    submit_rect = pygame.Rect((SCREEN_WIDTH - 200) // 2, 260, 200, 40)
+                    if submit_rect.collidepoint(mouse_pos):
+                        if game.player_name:  # 名前が入力されている場合
+                            game.add_to_rankings(game.player_name)
+                            game.name_input_active = False
+                
+                # ゲームオーバー画面
+                elif game.game_over:
+                    # 名前入力ボタン
+                    input_button = pygame.Rect((SCREEN_WIDTH - 200) // 2, 
+                                            (SCREEN_HEIGHT - 50) // 2 + 40, 200, 40)
+                    if input_button.collidepoint(mouse_pos):
+                        game.name_input_active = True
+                    
+                    # リトライボタン
+                    retry_button = pygame.Rect((SCREEN_WIDTH - 200) // 2, 
+                                            input_button.y + input_button.height + 20, 200, 40)
+                    if retry_button.collidepoint(mouse_pos):
                         game.reset()
                 
-                elif event.key == pygame.K_p:
-                    game.paused = not game.paused
+                # 通常画面
+                else:
+                    # ランキングボタン
+                    rank_button = pygame.Rect(GAME_WIDTH + 20, SCREEN_HEIGHT - 80, INFO_WIDTH - 40, 30)
+                    if rank_button.collidepoint(mouse_pos):
+                        game.show_ranking = True
+            
+            elif event.type == pygame.KEYDOWN:
+                # 名前入力画面
+                if game.name_input_active:
+                    if event.key == pygame.K_RETURN:  # Enter
+                        if game.player_name:  # 名前が入力されている場合
+                            game.add_to_rankings(game.player_name)
+                            game.name_input_active = False
+                    
+                    elif event.key == pygame.K_ESCAPE:  # ESC
+                        game.name_input_active = False
+                    
+                    elif event.key == pygame.K_BACKSPACE:  # バックスペース
+                        game.player_name = game.player_name[:-1]
+                    
+                    else:
+                        # 20文字以内で入力制限
+                        if len(game.player_name) < 20 and event.unicode.isprintable():
+                            game.player_name += event.unicode
                 
-                elif not game.paused:
-                    if event.key == pygame.K_LEFT:
-                        game.move(-1, 0)
-                        game.key_left_pressed = pygame.time.get_ticks()
+                # ランキング画面
+                elif game.show_ranking:
+                    if event.key == pygame.K_ESCAPE or event.key == pygame.K_RETURN:
+                        game.show_ranking = False
+                
+                # 通常画面
+                else:
+                    if event.key == pygame.K_ESCAPE:
+                        pygame.quit()
+                        sys.exit()
                     
-                    elif event.key == pygame.K_RIGHT:
-                        game.move(1, 0)
-                        game.key_right_pressed = pygame.time.get_ticks()
+                    if game.game_over:
+                        if event.key == pygame.K_r:
+                            game.reset()
                     
-                    elif event.key == pygame.K_DOWN:
-                        game.move(0, 1)
-                        game.key_down_pressed = pygame.time.get_ticks()
+                    elif event.key == pygame.K_p:
+                        game.paused = not game.paused
                     
-                    elif event.key == pygame.K_UP:
-                        game.rotate_tetromino()
+                    elif event.key == pygame.K_r:
+                        game.show_ranking = True
                     
-                    elif event.key == pygame.K_SPACE:
-                        game.hard_drop()
+                    elif not game.paused:
+                        if event.key == pygame.K_LEFT:
+                            game.move(-1, 0)
+                            game.key_left_pressed = pygame.time.get_ticks()
+                        
+                        elif event.key == pygame.K_RIGHT:
+                            game.move(1, 0)
+                            game.key_right_pressed = pygame.time.get_ticks()
+                        
+                        elif event.key == pygame.K_DOWN:
+                            game.move(0, 1)
+                            game.key_down_pressed = pygame.time.get_ticks()
+                        
+                        elif event.key == pygame.K_UP:
+                            game.rotate_tetromino()
+                        
+                        elif event.key == pygame.K_SPACE:
+                            game.hard_drop()
             
             elif event.type == pygame.KEYUP:
                 if event.key == pygame.K_LEFT:
@@ -520,8 +807,9 @@ def main():
                 elif event.key == pygame.K_DOWN:
                     game.key_down_pressed = 0
         
-        # ゲーム状態の更新
-        game.update()
+        # ゲーム状態の更新（名前入力中とランキング表示中は更新しない）
+        if not game.name_input_active and not game.show_ranking:
+            game.update()
         
         # 描画
         game.draw()
