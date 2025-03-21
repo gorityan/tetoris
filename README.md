@@ -30,7 +30,7 @@ pip install pygame
 3. リポジトリをクローンするか、ソースコードをダウンロードします：
 
 ```bash
-git clone https://github.com/yourusername/python-tetris.git
+git clone https://github.com/gorityan/python-tetris.git
 cd python-tetris
 ```
 
