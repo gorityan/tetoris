@@ -5,6 +5,8 @@ import os
 import json
 from datetime import datetime
 
+
+
 # 初期化
 pygame.init()
 
