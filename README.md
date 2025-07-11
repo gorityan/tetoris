@@ -3,7 +3,7 @@
 Pygameを使用した本格的なテトリスゲームです。クラシックなテトリスの遊び方をベースに、スコアランキング機能を実装しています。
 ![image](https://github.com/user-attachments/assets/89787a15-5771-4b56-9dec-6ee9cf9a8cb7)
 たのしいいいい
-aaa
+aaaあああああ
 
 
 ## 機能
